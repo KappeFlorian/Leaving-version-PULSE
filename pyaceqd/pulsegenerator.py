@@ -1215,6 +1215,20 @@ class PulseGenerator:
     
         return field_x, field_y
     
+    def generate_wavelength_functions(self, interpolation = 'cubic'):
+        #generate a function that can be used by qutip (ect) and interpolates accordingly 
+        field_x = interpolate.interp1d(self.wavelengths, self.frequency_representation_x, kind=interpolation, fill_value=0,bounds_error=False)
+        field_y = interpolate.interp1d(self.wavelengths, self.frequency_representation_y, kind=interpolation, fill_value=0,bounds_error=False)
+    
+        return field_x, field_y
+    
+    def generate_energy_functions(self, interpolation = 'cubic'):
+        #generate a function that can be used by qutip (ect) and interpolates accordingly 
+        field_x = interpolate.interp1d(self.energies, self.frequency_representation_x, kind=interpolation, fill_value=0,bounds_error=False)
+        field_y = interpolate.interp1d(self.energies, self.frequency_representation_y, kind=interpolation, fill_value=0,bounds_error=False)
+    
+        return field_x, field_y
+    
     def generate_field_functions_lab_frame(self):
         # interpolates the field functions in the lab frame 
         field_rf_x, field_rf_y = self.generate_field_functions()
@@ -1235,18 +1249,23 @@ class PulseGenerator:
         if other_pulse.dt != self.dt:
             print('CAUTION MERGING: Time steps of pulses do not agree!')
             
-        other_pulse_real_x = interpolate.interp1d(other_pulse.time, np.real(other_pulse.temporal_representation_x),
-                                                  kind='cubic', fill_value=0,bounds_error=False)
-        other_pulse_imag_x = interpolate.interp1d(other_pulse.time, np.imag(other_pulse.temporal_representation_x),
-                                                  kind='cubic', fill_value=0,bounds_error=False)
-        
-        other_pulse_real_y = interpolate.interp1d(other_pulse.time, np.real(other_pulse.temporal_representation_y),
-                                                  kind='cubic', fill_value=0,bounds_error=False)
-        other_pulse_imag_y = interpolate.interp1d(other_pulse.time, np.imag(other_pulse.temporal_representation_y),
-                                                  kind='cubic', fill_value=0,bounds_error=False)
-        
-        self._add_time(other_pulse_real_x(self.time)+1j*other_pulse_imag_x(self.time),
-                       other_pulse_real_y(self.time)+1j*other_pulse_imag_y(self.time))
+        overlap = np.abs(other_pulse.dt-self.dt) + np.abs(other_pulse.t0-self.t0) + np.abs(other_pulse.tend-self.tend)
+        if (other_pulse.central_wavelength == self.central_wavelength) and (overlap < self.dt*1e-3):
+            #print('Merging shortcut!')
+            self._add_time(other_pulse.temporal_representation_x,other_pulse.temporal_representation_y)
+        else:
+            other_pulse_real_x = interpolate.interp1d(other_pulse.time, np.real(other_pulse.temporal_representation_x),
+                                                    kind='cubic', fill_value=0,bounds_error=False)
+            other_pulse_imag_x = interpolate.interp1d(other_pulse.time, np.imag(other_pulse.temporal_representation_x),
+                                                    kind='cubic', fill_value=0,bounds_error=False)
+            
+            other_pulse_real_y = interpolate.interp1d(other_pulse.time, np.real(other_pulse.temporal_representation_y),
+                                                    kind='cubic', fill_value=0,bounds_error=False)
+            other_pulse_imag_y = interpolate.interp1d(other_pulse.time, np.imag(other_pulse.temporal_representation_y),
+                                                    kind='cubic', fill_value=0,bounds_error=False)
+            
+            self._add_time(other_pulse_real_x(self.time)+1j*other_pulse_imag_x(self.time),
+                        other_pulse_real_y(self.time)+1j*other_pulse_imag_y(self.time))
         
             
     
@@ -1276,6 +1295,10 @@ class PulseGenerator:
     
     def copy_pulse(self):
         return copy.deepcopy(self)
+    
+    def delete_pulse(self):
+        del self
+        print('Pulse deleted!')
     
 # loading a pulse from a file
 def load_pulse(file_name):
